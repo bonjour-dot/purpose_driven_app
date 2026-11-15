@@ -2,7 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 test('gateway request contract only permits documented actions', () => {
-  const actions = ['today','capture','task','completeTask','person','food','weight','exercise'];
+  const actions = [
+    'dashboard','capture','processCapture','clearProcessedCaptures',
+    'task','updateTask','completeTask','deleteTask',
+    'person','completePerson','goal','review','food','weight','exercise'
+  ];
   assert.equal(new Set(actions).size, actions.length);
   assert.ok(!actions.includes('deleteAll'));
 });

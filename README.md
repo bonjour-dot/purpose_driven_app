@@ -1,6 +1,12 @@
 # Purpose Driven
 
-A mobile-first personal planning and capture app for capturing what matters and following through: tasks, people follow-ups, food, weight, and exercise.
+A mobile-first personal planning and capture app built around one clear flow:
+
+```text
+CAPTURE → PROCESS → ORGANIZE → PLAN → DO → REVIEW
+```
+
+The Today dashboard is home. Purpose Driven includes quick typed and voice capture, inbox processing, full task fields (priority, date, time, area, notes and completion history), planning horizons, people follow-ups, daily review, purpose goals, nutrition, weight, exercise and lightweight progress charts.
 
 This repository is a standalone application. It does not edit, connect to, or migrate data from any other app.
 
@@ -16,7 +22,7 @@ Browser (Google Identity token; no secret)
 
 The browser never calls Apps Script directly and never receives the shared secret. Apps Script is the only component that reads/writes Sheets or Drive.
 
-> **Before deployment:** Read [the account ownership policy](docs/ACCOUNT_OWNERSHIP.md). The included Apps Script prototype currently writes through the deploying account and must be replaced with per-user Google OAuth storage before this app can be released to other users.
+> **Before storage deployment:** Read [the account ownership policy](docs/ACCOUNT_OWNERSHIP.md). The included Apps Script prototype is deliberately disabled because it would otherwise write through the deploying account. It must be replaced with a per-user Google OAuth storage design before this app can be released to other users.
 
 ## Local preview
 

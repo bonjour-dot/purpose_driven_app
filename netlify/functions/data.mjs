@@ -2,7 +2,11 @@ import crypto from 'node:crypto';
 import { OAuth2Client } from 'google-auth-library';
 
 const required = ['GOOGLE_CLIENT_ID', 'APPS_SCRIPT_URL', 'APP_GATEWAY_SHARED_SECRET'];
-const allowedActions = new Set(['today','capture','task','completeTask','person','food','weight','exercise']);
+const allowedActions = new Set([
+  'dashboard', 'capture', 'processCapture', 'clearProcessedCaptures',
+  'task', 'updateTask', 'completeTask', 'deleteTask',
+  'person', 'completePerson', 'goal', 'review', 'food', 'weight', 'exercise'
+]);
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 
 function allowedOrigin(headers) {
