@@ -3,7 +3,7 @@ import { OAuth2Client } from 'google-auth-library';
 
 const required = ['GOOGLE_CLIENT_ID', 'APPS_SCRIPT_URL', 'APP_GATEWAY_SHARED_SECRET'];
 const allowedActions = new Set(['today','capture','task','completeTask','person','food','weight','exercise']);
-const json = (statusCode, body) => ({ statusCode, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, body: JSON.stringify(body) });
+const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 
 function allowedOrigin(headers) {
   const origin = headers.origin || headers.Origin;
@@ -18,7 +18,7 @@ function signProof(claims, secret) {
 }
 
 export default async (request) => {
-  if (request.httpMethod !== 'POST') return json(405, { error: 'POST required' });
+  if (request.method !== 'POST') return json(405, { error: 'POST required' });
   if (!allowedOrigin(request.headers)) return json(403, { error: 'Origin is not allowed' });
   if (required.some(name => !process.env[name])) return json(500, { error: 'Server is not configured' });
   try {
