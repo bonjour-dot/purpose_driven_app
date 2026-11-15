@@ -28,9 +28,9 @@ function route_(claims, action, p) {
   else if (action === 'completePerson') update_(owner, p.id, 'person', { completed:true, completedAt:now_() });
   else if (action === 'goal') append_(owner, 'goal', { title:text_(p.title,240), status:'Active', createdAt:now_() });
   else if (action === 'review') upsertReview_(owner, reviewPayload_(p));
-  else if (action === 'food') append_(owner, 'food', foodPayload_(p));
-  else if (action === 'weight') append_(owner, 'weight', weightPayload_(p));
-  else if (action === 'exercise') append_(owner, 'exercise', exercisePayload_(p));
+  else if (action === 'food') { const data=foodPayload_(p); append_(owner, 'food', data, data.date); }
+  else if (action === 'weight') { const data=weightPayload_(p); append_(owner, 'weight', data, data.date); }
+  else if (action === 'exercise') { const data=exercisePayload_(p); append_(owner, 'exercise', data, data.date); }
   else if (action === 'capture') capture_(claims, p);
   else if (action === 'processCapture') processCapture_(claims, p);
   else if (action === 'clearProcessedCaptures') clearProcessedCaptures_(owner);
@@ -50,9 +50,9 @@ function taskPayload_(p, partial) {
 }
 function personPayload_(p) { const name=text_(p.name,240); if (!name) throw Error('Name required'); return { name:name, note:text_(p.note,1000), due:date_(p.due), time:time_(p.time), completed:false, createdAt:now_() }; }
 function reviewPayload_(p) { return { date:date_(p.date)||today_(), morning:text_(p.morning,2000), evening:text_(p.evening,4000), energy:boundedNumber_(p.energy,1,5,3), updatedAt:now_() }; }
-function foodPayload_(p) { const text=text_(p.text,500); if (!text) throw Error('Food required'); return { kind:'food', text:text, calories:boundedNumber_(p.calories,0,10000,0), protein:boundedNumber_(p.protein,0,1000,0), carbs:boundedNumber_(p.carbs,0,2000,0), fat:boundedNumber_(p.fat,0,1000,0), label:'Food: '+text }; }
-function weightPayload_(p) { const value=boundedNumber_(p.value,0.1,1000,0); if (!value) throw Error('Invalid weight'); const unit=p.unit==='lb'?'lb':'kg'; return { kind:'weight', value:value, unit:unit, label:'Weight: '+value+' '+unit }; }
-function exercisePayload_(p) { const text=text_(p.text,500), minutes=boundedNumber_(p.minutes,0,1440,0); if (!text&&!minutes) throw Error('Exercise required'); return { kind:'exercise', text:text, minutes:minutes, label:'Exercise: '+(text||minutes+' min') }; }
+function foodPayload_(p) { const text=text_(p.text,500); if (!text) throw Error('Food required'); const quantity=boundedNumber_(p.quantity,0.1,100,1); return { kind:'food', date:date_(p.date)||today_(), slot:['Meal 1','Meal 2','Evening','Snacks','Drinks'].indexOf(p.slot)>-1?p.slot:'Meal 1', serving:text_(p.serving,120), quantity:quantity, text:text, calories:boundedNumber_(p.calories,0,10000,0), protein:boundedNumber_(p.protein,0,1000,0), carbs:boundedNumber_(p.carbs,0,2000,0), fat:boundedNumber_(p.fat,0,1000,0), label:'Food: '+text }; }
+function weightPayload_(p) { const value=boundedNumber_(p.value,0.1,1000,0); if (!value) throw Error('Invalid weight'); const unit=p.unit==='lb'?'lb':'kg'; return { kind:'weight', date:date_(p.date)||today_(), value:value, unit:unit, goal:boundedNumber_(p.goal,1,1000,105), waist:boundedNumber_(p.waist,0,1000,0), note:text_(p.note,500), label:'Weight: '+value+' '+unit }; }
+function exercisePayload_(p) { const text=text_(p.text,500), minutes=boundedNumber_(p.minutes,0,1440,0); if (!text&&!minutes) throw Error('Exercise required'); return { kind:'exercise', date:date_(p.date)||today_(), text:text, minutes:minutes, distance:boundedNumber_(p.distance,0,1000,0), calories:boundedNumber_(p.calories,0,10000,0), source:['Manual','Apple Watch','Oura'].indexOf(p.source)>-1?p.source:'Manual', hrAvg:boundedNumber_(p.hrAvg,0,300,0), hrMax:boundedNumber_(p.hrMax,0,300,0), steps:boundedNumber_(p.steps,0,200000,0), note:text_(p.note,1000), label:'Exercise: '+(text||minutes+' min') }; }
 
 function capture_(claims, p) {
   const text=text_(p.text,5000); if (!text) throw Error('Empty capture');
@@ -82,7 +82,7 @@ function dashboard_(owner) {
   };
 }
 
-function append_(owner,type,data) { const now=new Date(); sheet_().appendRow([Utilities.getUuid(),owner,type,Utilities.formatDate(now,Session.getScriptTimeZone(),'yyyy-MM-dd'),JSON.stringify(data),now.toISOString(),now.toISOString()]); }
+function append_(owner,type,data,date) { const now=new Date(); sheet_().appendRow([Utilities.getUuid(),owner,type,date_(date)||Utilities.formatDate(now,Session.getScriptTimeZone(),'yyyy-MM-dd'),JSON.stringify(data),now.toISOString(),now.toISOString()]); }
 function update_(owner,id,type,patch) { const record=recordById_(owner,id,type); if (!record) throw Error('Record not found'); const data=Object.assign({},record.data,patch); const sheet=sheet_(); sheet.getRange(record.row,5).setValue(JSON.stringify(data)); sheet.getRange(record.row,7).setValue(now_()); }
 function upsertReview_(owner,data) { const record=records_(owner).filter(r=>r.type==='review'&&r.data.date===data.date).pop(); if (record) update_(owner,record.id,'review',data); else append_(owner,'review',data); }
 function records_(owner) { const values=sheet_().getDataRange().getValues(); return values.slice(1).filter(r=>r[1]===owner).map((r,index)=>({row:index+2,id:r[0],type:r[2],date:r[3],data:JSON.parse(r[4]||'{}')})); }

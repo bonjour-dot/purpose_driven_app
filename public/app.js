@@ -163,9 +163,30 @@ function renderHealth() {
   $('#nutritionProtein').textContent = `${Math.round(sum('protein'))}g`;
   $('#nutritionCarbs').textContent = `${Math.round(sum('carbs'))}g`;
   $('#nutritionFat').textContent = `${Math.round(sum('fat'))}g`;
-  const recent = state.data.health.slice(-7).reverse();
-  const max = Math.max(...recent.map(item => Number(item.calories || item.minutes || item.value || 0)), 1);
-  $('#healthChart').innerHTML = recent.length ? recent.map(item => { const n = Number(item.calories || item.minutes || item.value || 0); return `<div class="bar-wrap"><i style="height:${Math.max(12, Math.round(n / max * 100))}%"></i><span>${escapeHtml(item.kind)}</span></div>`; }).join('') : empty('Your health trend will grow as you log.');
+  const groups = food.reduce((all, item) => { const slot = item.slot || 'Food'; (all[slot] ||= []).push(item); return all; }, {});
+  $('#mealBreakdown').innerHTML = food.length ? Object.entries(groups).map(([slot, items]) => {
+    const calories = items.reduce((n, item) => n + Number(item.calories || 0), 0);
+    const protein = items.reduce((n, item) => n + Number(item.protein || 0), 0);
+    return `<div class="item"><div><strong>${escapeHtml(slot)}</strong><small>${escapeHtml(items.map(item => item.text).join(' · '))}</small></div><small>${Math.round(calories)} kcal · ${Math.round(protein)}g P</small></div>`;
+  }).join('') : empty('Add a food, a portion and its macros to build today’s picture.');
+  const weights = state.data.health.filter(item => item.kind === 'weight').sort((a, b) => String(a.date).localeCompare(String(b.date))).slice(-8);
+  $('#weightProgressCard').hidden = state.activeHealth !== 'weight';
+  if (state.activeHealth === 'weight') {
+    const last = weights.at(-1), goal = Number(last?.goal || $('#weightGoal').value || 105);
+    $('#weightTrendTitle').textContent = last ? `${Number(last.value).toFixed(1)} ${last.unit || 'kg'} latest` : 'No weigh-ins yet';
+    $('#weightToGoal').textContent = last ? `${Math.max(0, Number(last.value) - goal).toFixed(1)} kg to ${goal} kg` : `Goal ${goal} kg`;
+    const max = Math.max(...weights.map(item => Number(item.value || 0)), goal, 1), min = Math.min(...weights.map(item => Number(item.value || max)), goal);
+    $('#weightChart').innerHTML = weights.length ? weights.map(item => { const value = Number(item.value); const height = Math.max(12, Math.round(((value - min + 1) / (max - min + 1)) * 100)); return `<div class="bar-wrap"><i style="height:${height}%"></i><span>${escapeHtml(String(item.date).slice(5))}</span></div>`; }).join('') : empty('Your weight trend will appear here after your first weigh-in.');
+  }
+  const weekStart = addDays(-6);
+  const exercise = state.data.health.filter(item => item.kind === 'exercise' && item.date >= weekStart);
+  $('#exerciseProgressCard').hidden = state.activeHealth !== 'exercise';
+  if (state.activeHealth === 'exercise') {
+    const minutes = exercise.reduce((n, item) => n + Number(item.minutes || 0), 0), distance = exercise.reduce((n, item) => n + Number(item.distance || 0), 0), calories = exercise.reduce((n, item) => n + Number(item.calories || 0), 0);
+    $('#exerciseSummary').textContent = `${exercise.length} session${exercise.length === 1 ? '' : 's'} in the last 7 days`;
+    $('#exerciseMetrics').innerHTML = `<article><strong>${minutes}</strong><span>minutes</span></article><article><strong>${distance.toFixed(1)}</strong><span>km</span></article><article><strong>${Math.round(calories)}</strong><span>kcal</span></article>`;
+  }
+  const recent = [...state.data.health].sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).slice(0, 20);
   $('#healthHistory').innerHTML = recent.length ? recent.map(item => `<div class="item"><strong>${escapeHtml(item.label || item.text || item.kind)}</strong><small>${escapeHtml(item.date || '')}</small></div>`).join('') : '';
 }
 function renderCategories() {
@@ -204,14 +225,14 @@ $('#voice').onclick = () => { const Speech = window.SpeechRecognition || window.
 $('#personForm').addEventListener('submit', event => { event.preventDefault(); const name = $('#personName').value.trim(); if (!name) return; save('person', { name, note: $('#personNote').value.trim(), due: $('#personDue').value, time: $('#personTime').value }).then(() => event.target.reset()); });
 $('#energy').oninput = () => { $('#energyValue').textContent = `${$('#energy').value} / 5`; };
 $('#reviewForm').addEventListener('submit', event => { event.preventDefault(); save('review', { morning: $('#morningPriorities').value.trim(), evening: $('#eveningReflection').value.trim(), energy: Number($('#energy').value), date: todayISO() }); });
-document.querySelectorAll('[data-health]').forEach(button => button.onclick = () => { state.activeHealth = button.dataset.health; document.querySelectorAll('[data-health]').forEach(item => item.classList.toggle('selected', item.dataset.health === state.activeHealth)); ['food', 'weight', 'exercise'].forEach(name => { $(`#${name}Form`).hidden = name !== state.activeHealth; }); });
-$('#foodForm').addEventListener('submit', event => { event.preventDefault(); const text = $('#meal').value.trim(); if (!text) return; save('food', { text, calories: $('#calories').value, protein: $('#protein').value, carbs: $('#carbs').value, fat: $('#fat').value }).then(() => event.target.reset()); });
-$('#weightForm').addEventListener('submit', event => { event.preventDefault(); const value = $('#weight').value; if (value) save('weight', { value, unit: $('#weightUnit').value }).then(() => event.target.reset()); });
-$('#exerciseForm').addEventListener('submit', event => { event.preventDefault(); const text = $('#exercise').value.trim(), minutes = $('#minutes').value; if (text || minutes) save('exercise', { text, minutes }).then(() => event.target.reset()); });
+document.querySelectorAll('[data-health]').forEach(button => button.onclick = () => { state.activeHealth = button.dataset.health; document.querySelectorAll('[data-health]').forEach(item => item.classList.toggle('selected', item.dataset.health === state.activeHealth)); ['food', 'weight', 'exercise'].forEach(name => { $(`#${name}Form`).hidden = name !== state.activeHealth; }); renderHealth(); });
+$('#foodForm').addEventListener('submit', event => { event.preventDefault(); const text = $('#meal').value.trim(); if (!text) return; save('food', { text, date: $('#foodDate').value || todayISO(), slot: $('#foodSlot').value, serving: $('#serving').value.trim(), quantity: $('#quantity').value, calories: $('#calories').value, protein: $('#protein').value, carbs: $('#carbs').value, fat: $('#fat').value }).then(() => { event.target.reset(); $('#foodDate').value = todayISO(); $('#quantity').value = 1; }); });
+$('#weightForm').addEventListener('submit', event => { event.preventDefault(); const value = $('#weight').value; if (value) save('weight', { value, unit: $('#weightUnit').value, date: $('#weightDate').value || todayISO(), goal: $('#weightGoal').value, waist: $('#waist').value, note: $('#weightNote').value.trim() }).then(() => { event.target.reset(); $('#weightDate').value = todayISO(); $('#weightGoal').value = 105; }); });
+$('#exerciseForm').addEventListener('submit', event => { event.preventDefault(); const minutes = $('#minutes').value; if (minutes) save('exercise', { text: $('#exercise').value, minutes, date: $('#exerciseDate').value || todayISO(), distance: $('#distance').value, calories: $('#exerciseCalories').value, source: $('#exerciseSource').value, hrAvg: $('#hrAvg').value, hrMax: $('#hrMax').value, steps: $('#steps').value, note: $('#exerciseNote').value.trim() }).then(() => { event.target.reset(); $('#exerciseDate').value = todayISO(); }); });
 
 function signedInView() { $('#login').hidden = true; $('#app').hidden = false; $('#signOut').hidden = false; render(); }
 function signOut(message = 'Signed out.') { state.credential = null; state.user = null; sessionStorage.removeItem('purpose-driven-credential'); $('#activeAccount').hidden = true; $('#storageNotice').hidden = true; $('#app').hidden = true; $('#login').hidden = false; $('#signOut').hidden = true; status(message); }
 window.handleCredentialResponse = async response => { if (!response.credential) return status('Google did not return a sign-in credential. Please try again.'); state.credential = response.credential; try { state.user = await verifyAuthentication(); sessionStorage.setItem('purpose-driven-credential', state.credential); signedInView(); await loadDashboard(); } catch (error) { signOut(error.message); } };
 async function restoreSession() { const credential = sessionStorage.getItem('purpose-driven-credential'); if (!credential) return; state.credential = credential; try { state.user = await verifyAuthentication(); signedInView(); await loadDashboard(); } catch { signOut('Your Google session expired. Please sign in again.'); } }
 async function initialiseGoogleSignIn() { const help = $('#loginHelp'); try { const config = await fetch('/api/config', { cache: 'no-store' }).then(response => response.ok ? response.json() : Promise.reject()); if (!config.googleClientId) { help.textContent = 'Google sign-in has not been configured yet. Add GOOGLE_CLIENT_ID in Netlify to enable it.'; return; } let attempts = 0; const waitForGoogle = setInterval(() => { attempts += 1; if (!window.google?.accounts?.id) { if (attempts >= 50) { clearInterval(waitForGoogle); help.textContent = 'Google sign-in could not load. Check your connection and try again.'; } return; } clearInterval(waitForGoogle); google.accounts.id.initialize({ client_id: config.googleClientId, callback: window.handleCredentialResponse, auto_select: false, use_fedcm_for_prompt: true }); google.accounts.id.renderButton($('#googleButton'), { theme: 'outline', size: 'large', type: 'standard', text: 'continue_with', shape: 'pill', width: 280 }); help.textContent = 'Continue with your Google account. Your identity is verified by the server.'; restoreSession(); }, 100); } catch { help.textContent = 'Google sign-in settings could not be loaded. Please try again later.'; } }
-window.addEventListener('load', initialiseGoogleSignIn); $('#signOut').onclick = () => signOut(); $('#retryDashboard').onclick = () => loadDashboard();
+window.addEventListener('load', () => { ['foodDate', 'weightDate', 'exerciseDate'].forEach(id => { if (!$('#' + id).value) $('#' + id).value = todayISO(); }); initialiseGoogleSignIn(); }); $('#signOut').onclick = () => signOut(); $('#retryDashboard').onclick = () => loadDashboard();
