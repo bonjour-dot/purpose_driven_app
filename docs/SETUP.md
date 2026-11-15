@@ -33,13 +33,7 @@ Deploy the repository. Netlify bundles Function environment variables server-sid
 
 ## 4. Add the client ID safely
 
-The app reads `window.PURPOSE_DRIVEN_GOOGLE_CLIENT_ID` from a tiny generated `/config.js` file. For this static starter, set that file during deployment from the public client ID only. A simple safe option is a Netlify build command:
-
-```sh
-mkdir -p public && printf "window.PURPOSE_DRIVEN_GOOGLE_CLIENT_ID='%s';\n" "$GOOGLE_CLIENT_ID" > public/config.js
-```
-
-Do **not** place `APPS_SCRIPT_URL` or `APP_GATEWAY_SHARED_SECRET` in `config.js`.
+Set `GOOGLE_CLIENT_ID` in Netlify with **Functions** scope. The `/api/config` Function returns only this public browser client ID to the page. Do **not** put `APPS_SCRIPT_URL`, `APP_GATEWAY_SHARED_SECRET`, OAuth client secrets, or refresh tokens in browser files.
 
 ## Production test checklist
 

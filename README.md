@@ -24,7 +24,7 @@ The browser never calls Apps Script directly and never receives the shared secre
 2. `npm install`
 3. `npx netlify dev`
 
-Use Netlify CLI so `/api/data` routes to the Function. Opening `public/index.html` directly is a visual-only preview.
+Use Netlify CLI so `/api/config` and `/api/data` route to Functions. Opening `public/index.html` directly is a visual-only preview.
 
 ## Deployment
 
