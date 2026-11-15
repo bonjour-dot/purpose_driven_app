@@ -28,10 +28,18 @@ async function api(action, payload = {}) {
   const response = await fetch('/api/data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential: state.credential, action, payload }) });
   const body = await response.json();
   if (!response.ok) {
-    if (response.status === 401) signOut('Your Google session expired. Please sign in again.');
-    throw Error(body.error || 'Unable to save.');
+    const error = Error(body.error || 'Unable to save.');
+    error.status = response.status;
+    throw error;
   }
   return body;
+}
+
+async function verifyAuthentication(credential = state.credential) {
+  const response = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential }) });
+  const body = await response.json();
+  if (!response.ok) { const error = Error(body.error || 'Google sign-in could not be verified'); error.status = response.status; throw error; }
+  return body.user;
 }
 
 function normalise(data = {}) {
@@ -42,6 +50,26 @@ async function refresh() {
   normalise(result.data);
   state.user = result.user || state.user;
   render();
+}
+function showStorageIssue(message) {
+  $('#storageMessage').textContent = message;
+  $('#storageNotice').hidden = false;
+  status('You are signed in. Storage needs configuration before your records can load.');
+}
+async function loadDashboard() {
+  try {
+    $('#storageNotice').hidden = true;
+    await refresh();
+    status('Your workspace is ready.');
+    return true;
+  } catch (error) {
+    if (error.status === 401) {
+      try { await verifyAuthentication(); }
+      catch { signOut('Your Google session expired. Please sign in again.'); return false; }
+    }
+    showStorageIssue(error.message);
+    return false;
+  }
 }
 async function save(action, payload, success = 'Saved to your private workspace.') {
   try { status('Saving…'); const result = await api(action, payload); normalise(result.data); render(); status(success); }
@@ -181,7 +209,9 @@ $('#foodForm').addEventListener('submit', event => { event.preventDefault(); con
 $('#weightForm').addEventListener('submit', event => { event.preventDefault(); const value = $('#weight').value; if (value) save('weight', { value, unit: $('#weightUnit').value }).then(() => event.target.reset()); });
 $('#exerciseForm').addEventListener('submit', event => { event.preventDefault(); const text = $('#exercise').value.trim(), minutes = $('#minutes').value; if (text || minutes) save('exercise', { text, minutes }).then(() => event.target.reset()); });
 
-function signOut(message = 'Signed out.') { state.credential = null; state.user = null; $('#activeAccount').hidden = true; $('#app').hidden = true; $('#login').hidden = false; $('#signOut').hidden = true; status(message); }
-window.handleCredentialResponse = async response => { if (!response.credential) return status('Google did not return a sign-in credential. Please try again.'); state.credential = response.credential; $('#login').hidden = true; $('#app').hidden = false; $('#signOut').hidden = false; try { await refresh(); status('Your workspace is ready.'); } catch (error) { signOut(error.message); } };
-async function initialiseGoogleSignIn() { const help = $('#loginHelp'); try { const config = await fetch('/api/config', { cache: 'no-store' }).then(response => response.ok ? response.json() : Promise.reject()); if (!config.googleClientId) { help.textContent = 'Google sign-in has not been configured yet. Add GOOGLE_CLIENT_ID in Netlify to enable it.'; return; } let attempts = 0; const waitForGoogle = setInterval(() => { attempts += 1; if (!window.google?.accounts?.id) { if (attempts >= 50) { clearInterval(waitForGoogle); help.textContent = 'Google sign-in could not load. Check your connection and try again.'; } return; } clearInterval(waitForGoogle); google.accounts.id.initialize({ client_id: config.googleClientId, callback: window.handleCredentialResponse, auto_select: false, use_fedcm_for_prompt: true }); google.accounts.id.renderButton($('#googleButton'), { theme: 'outline', size: 'large', type: 'standard', text: 'continue_with', shape: 'pill', width: 280 }); help.textContent = 'Continue with your Google account. Your identity is verified by the server.'; }, 100); } catch { help.textContent = 'Google sign-in settings could not be loaded. Please try again later.'; } }
-window.addEventListener('load', initialiseGoogleSignIn); $('#signOut').onclick = () => signOut();
+function signedInView() { $('#login').hidden = true; $('#app').hidden = false; $('#signOut').hidden = false; render(); }
+function signOut(message = 'Signed out.') { state.credential = null; state.user = null; sessionStorage.removeItem('purpose-driven-credential'); $('#activeAccount').hidden = true; $('#storageNotice').hidden = true; $('#app').hidden = true; $('#login').hidden = false; $('#signOut').hidden = true; status(message); }
+window.handleCredentialResponse = async response => { if (!response.credential) return status('Google did not return a sign-in credential. Please try again.'); state.credential = response.credential; try { state.user = await verifyAuthentication(); sessionStorage.setItem('purpose-driven-credential', state.credential); signedInView(); await loadDashboard(); } catch (error) { signOut(error.message); } };
+async function restoreSession() { const credential = sessionStorage.getItem('purpose-driven-credential'); if (!credential) return; state.credential = credential; try { state.user = await verifyAuthentication(); signedInView(); await loadDashboard(); } catch { signOut('Your Google session expired. Please sign in again.'); } }
+async function initialiseGoogleSignIn() { const help = $('#loginHelp'); try { const config = await fetch('/api/config', { cache: 'no-store' }).then(response => response.ok ? response.json() : Promise.reject()); if (!config.googleClientId) { help.textContent = 'Google sign-in has not been configured yet. Add GOOGLE_CLIENT_ID in Netlify to enable it.'; return; } let attempts = 0; const waitForGoogle = setInterval(() => { attempts += 1; if (!window.google?.accounts?.id) { if (attempts >= 50) { clearInterval(waitForGoogle); help.textContent = 'Google sign-in could not load. Check your connection and try again.'; } return; } clearInterval(waitForGoogle); google.accounts.id.initialize({ client_id: config.googleClientId, callback: window.handleCredentialResponse, auto_select: false, use_fedcm_for_prompt: true }); google.accounts.id.renderButton($('#googleButton'), { theme: 'outline', size: 'large', type: 'standard', text: 'continue_with', shape: 'pill', width: 280 }); help.textContent = 'Continue with your Google account. Your identity is verified by the server.'; restoreSession(); }, 100); } catch { help.textContent = 'Google sign-in settings could not be loaded. Please try again later.'; } }
+window.addEventListener('load', initialiseGoogleSignIn); $('#signOut').onclick = () => signOut(); $('#retryDashboard').onclick = () => loadDashboard();

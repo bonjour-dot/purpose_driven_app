@@ -10,7 +10,7 @@ const allowedActions = new Set([
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 
 function allowedOrigin(headers) {
-  const origin = headers.origin || headers.Origin;
+  const origin = typeof headers.get === 'function' ? headers.get('origin') : (headers.origin || headers.Origin);
   const allowed = (process.env.ALLOWED_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean);
   return !origin || allowed.includes(origin);
 }
