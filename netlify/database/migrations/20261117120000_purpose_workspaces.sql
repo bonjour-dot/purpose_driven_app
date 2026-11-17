@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS purpose_workspaces (
   data jsonb NOT NULL DEFAULT '{}'::jsonb,
   revision bigint NOT NULL DEFAULT 0,
   last_sync_at timestamptz,
+  last_sync_revision bigint,
   sync_error text,
   updated_at timestamptz NOT NULL DEFAULT now()
 );

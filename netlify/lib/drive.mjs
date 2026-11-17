@@ -63,13 +63,13 @@ export async function syncWorkspace(user) {
     if (latest.revision === local.revision) {
       const remote = await readBackup(user, latest.id);
       if (remote.checksum !== digest(local.data)) return { status: 'conflict', latest, message: 'Drive and this workspace differ at the same revision.' };
-      const updated = await db().sql`UPDATE purpose_workspaces SET last_sync_at = now(), sync_error = NULL WHERE owner_sub = ${user.sub} AND revision = ${local.revision} RETURNING revision`;
+      const updated = await db().sql`UPDATE purpose_workspaces SET last_sync_at = now(), last_sync_revision = ${local.revision}, sync_error = NULL WHERE owner_sub = ${user.sub} AND revision = ${local.revision} RETURNING revision`;
       return updated.length ? { status: 'synced', latest } : { status: 'pending', latest, message: 'New changes are pending a Drive sync.' };
     }
   }
   const backup = backupEnvelope(user.sub, local.revision, local.data);
   const result = await gateway(user, 'write', { backup });
-  const updated = await db().sql`UPDATE purpose_workspaces SET last_sync_at = now(), sync_error = NULL WHERE owner_sub = ${user.sub} AND revision = ${local.revision} RETURNING revision`;
+  const updated = await db().sql`UPDATE purpose_workspaces SET last_sync_at = now(), last_sync_revision = ${local.revision}, sync_error = NULL WHERE owner_sub = ${user.sub} AND revision = ${local.revision} RETURNING revision`;
   return updated.length ? { status: 'synced', latest: result.file } : { status: 'pending', latest: result.file, message: 'New changes are pending a Drive sync.' };
 }
 export async function restoreBackup(user, fileId, expectedRevision) {

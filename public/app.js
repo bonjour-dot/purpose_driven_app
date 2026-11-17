@@ -381,7 +381,8 @@ async function loadDriveStatus() {
     const response = await fetch('/api/drive?action=status', { credentials: 'same-origin', cache: 'no-store' }); const body = await response.json(); if (!response.ok) throw Error(body.error);
     state.driveConnected = body.connected; $('#driveAccount').textContent = body.connected ? `Connected: ${body.email}` : 'Google Drive is not connected.';
     $('#lastSync').textContent = body.lastSync ? `Last successful sync: ${new Date(body.lastSync).toLocaleString()}` : 'No successful Drive sync yet.';
-    showSync(body.syncError ? `Sync error: ${body.syncError}` : body.connected ? 'Offline / Pending Sync' : 'Authentication Required', body.connected ? 'pending' : 'auth');
+    const synced = body.connected && body.lastSync && body.lastSyncRevision === body.revision;
+    showSync(body.syncError ? `Sync error: ${body.syncError}` : synced ? 'Synced' : body.connected ? 'Offline / Pending Sync' : 'Authentication Required', body.syncError ? 'error' : synced ? 'synced' : body.connected ? 'pending' : 'auth');
     $('#connectDrive').textContent = body.connected ? 'Reconnect Drive' : 'Connect Google Drive'; $('#syncDrive').hidden = !body.connected; $('#restoreDrive').hidden = !body.connected; $('#disconnectDrive').hidden = !body.connected;
     const result = new URLSearchParams(location.search).get('drive'); if (result) { status(result === 'connected' ? 'Google Drive connected. Sync when ready.' : `Drive connection: ${result.replaceAll('-', ' ')}.`); history.replaceState(null, '', location.pathname); }
   } catch (error) { showSync(`Sync Error: ${error.message}`, 'error'); }
@@ -406,3 +407,4 @@ $('#restoreDrive').onclick = async () => {
     const restored = await driveRequest('restore', { fileId: latest.id, expectedRevision: state.revision }); normalise(restored.data); state.revision = restored.revision; render(); showSync('Offline / Pending Sync', 'pending'); status('Drive backup restored. Sync to save this revision.');
   } catch (error) { status(error.message); }
 };
+window.addEventListener('online', () => { if (state.driveConnected) syncDrive(false); });

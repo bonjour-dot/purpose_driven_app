@@ -13,6 +13,8 @@ For the production site, register:
 
 For local tests, also register `http://localhost:8888` and `http://localhost:8888/api/drive` if that is the Netlify CLI port. Redirect URI must exactly match `GOOGLE_OAUTH_REDIRECT_URI` for the environment. Add test users while the consent screen remains in Testing. Google may require OAuth verification before public use.
 
+For a deploy preview test, register that preview's exact origin and `/api/drive` redirect URI too, and add the preview origin to that context's `ALLOWED_ORIGINS`. Google does not accept a wildcard redirect for every preview URL.
+
 Sign-in uses a Google ID token; Drive authorization is a separate consent step. The `drive.appdata` scope stores app-managed snapshots in a hidden folder in each user's Drive. It cannot read other Drive files or old developer-owned Sheets.
 
 ## 2. Netlify

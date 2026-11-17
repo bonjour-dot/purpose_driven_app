@@ -25,7 +25,7 @@ export default async request => {
       catch (error) { console.error('Drive connection failed:', error); return redirect('/?drive=connection-error', { 'Set-Cookie': clear }); }
     }
     if (action === 'status') {
-      try { const row = await connection(user.sub), workspace = await loadWorkspace(user.sub); return json(200, { connected: !!row, email: row?.email || null, lastSync: workspace.lastSync, syncError: workspace.syncError, revision: workspace.revision }); }
+      try { const row = await connection(user.sub), workspace = await loadWorkspace(user.sub); return json(200, { connected: !!row, email: row?.email || null, lastSync: workspace.lastSync, lastSyncRevision: workspace.lastSyncRevision, syncError: workspace.syncError, revision: workspace.revision }); }
       catch { return json(503, { error: 'Drive status is unavailable' }); }
     }
     return json(400, { error: 'Invalid action' });

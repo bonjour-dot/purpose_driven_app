@@ -5,9 +5,9 @@ let database;
 export const db = () => database ||= getDatabase();
 export async function loadWorkspace(sub, raw = false) {
   await db().sql`INSERT INTO purpose_workspaces (owner_sub, data) VALUES (${sub}, ${emptyWorkspace()}) ON CONFLICT DO NOTHING`;
-  const rows = await db().sql`SELECT data, revision, last_sync_at, sync_error FROM purpose_workspaces WHERE owner_sub = ${sub}`;
+  const rows = await db().sql`SELECT data, revision, last_sync_at, last_sync_revision, sync_error FROM purpose_workspaces WHERE owner_sub = ${sub}`;
   const row = rows[0];
-  return { data: raw ? normalizeWorkspace(row?.data) : publicWorkspace(row?.data || emptyWorkspace()), revision: Number(row?.revision || 0), lastSync: row?.last_sync_at || null, syncError: row?.sync_error || null };
+  return { data: raw ? normalizeWorkspace(row?.data) : publicWorkspace(row?.data || emptyWorkspace()), revision: Number(row?.revision || 0), lastSync: row?.last_sync_at || null, lastSyncRevision: row?.last_sync_revision == null ? null : Number(row.last_sync_revision), syncError: row?.sync_error || null };
 }
 export async function mutateWorkspace(sub, action, payload, expectedRevision) {
   const client = await db().pool.connect();
