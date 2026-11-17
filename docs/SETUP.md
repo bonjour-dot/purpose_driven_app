@@ -1,51 +1,50 @@
-# Deployment and security setup
+# Google and Netlify setup for review
 
-> **Do not deploy the current backend yet.** It is intentionally disabled until its storage layer is refactored to use each signed-in user’s own Google Drive authorization. See [ACCOUNT_OWNERSHIP.md](ACCOUNT_OWNERSHIP.md).
+This branch is a review proposal. Do not merge or deploy it until the OAuth configuration and account tests below are complete. Existing production data has not been changed.
 
-## 1. Create a new Google OAuth client
+## 1. Google Cloud
 
-In Google Cloud Console, configure the OAuth consent screen and create a **Web application** OAuth client.
+Use a Google Cloud project controlled by `ryan@espoirvivant.com`, not the work-domain account. Enable the **Google Drive API**. Configure the OAuth consent screen for the intended audience and request `openid`, `email`, and `https://www.googleapis.com/auth/drive.appdata`. Create a **Web application** OAuth client.
 
-- Add `https://YOUR-SITE.netlify.app` under Authorized JavaScript origins.
-- Add `http://localhost:8888` for Netlify local development if needed.
-- Copy its client ID. A browser client ID is expected to be public; do not create or use a browser client secret.
+For the production site, register:
 
-## 2. Deploy the Apps Script backend
+- Authorized JavaScript origin: `https://purposedrivenapp.netlify.app`
+- Authorized redirect URI: `https://purposedrivenapp.netlify.app/api/drive`
 
-1. Create a **new standalone Apps Script project**—not either existing project.
-2. Replace its `Code.gs` with [`apps-script/Code.gs`](../apps-script/Code.gs).
-3. In Project Settings > Script properties, add `APP_GATEWAY_SHARED_SECRET` with a unique random value (at least 32 characters).
-4. Deploy as Web app. It must be reachable by Netlify; select the least broad access setting that permits Netlify’s server request in your Google Workspace. The HMAC proof is mandatory regardless of the deployment access setting.
-5. Copy the `/exec` deployment URL. Do not use the `/dev` URL.
+For local tests, also register `http://localhost:8888` and `http://localhost:8888/api/drive` if that is the Netlify CLI port. Redirect URI must exactly match `GOOGLE_OAUTH_REDIRECT_URI` for the environment. Add test users while the consent screen remains in Testing. Google may require OAuth verification before public use.
 
-## 3. Configure Netlify
+Sign-in uses a Google ID token; Drive authorization is a separate consent step. The `drive.appdata` scope stores app-managed snapshots in a hidden folder in each user's Drive. It cannot read other Drive files or old developer-owned Sheets.
 
-In Site configuration > Environment variables set:
+## 2. Netlify
 
-| Variable | Value |
+The site needs Netlify Database, the committed migration, and these Function environment variables:
+
+| Variable | Purpose |
 | --- | --- |
-| `GOOGLE_CLIENT_ID` | OAuth client ID from step 1 |
-| `APPS_SCRIPT_URL` | Apps Script `/exec` URL |
-| `APP_GATEWAY_SHARED_SECRET` | exactly the value from step 2 |
-| `ALLOWED_ORIGINS` | comma-separated production origin(s), e.g. `https://YOUR-SITE.netlify.app` |
+| `GOOGLE_CLIENT_ID` | Web OAuth client ID, exposed by `/api/config` |
+| `GOOGLE_CLIENT_SECRET` | Server-side OAuth code exchange |
+| `GOOGLE_OAUTH_REDIRECT_URI` | Exact authorized callback URI |
+| `APP_SESSION_SECRET` | Long random session signing secret |
+| `TOKEN_ENCRYPTION_KEY` | 32 random bytes, base64 encoded, for AES-256-GCM |
+| `ALLOWED_ORIGINS` | Comma-separated allowed site origins |
+| `APPS_SCRIPT_URL` | New Apps Script `/exec` URL |
+| `APP_GATEWAY_SHARED_SECRET` | Same long random value as Apps Script property |
 
-Deploy the repository. Netlify bundles Function environment variables server-side; they are not exposed to browser code.
+`NETLIFY_DB_URL` is provided by Netlify Database; do not paste it into the repository. Keep all secrets in Function-scoped environment variables. Do not rotate `TOKEN_ENCRYPTION_KEY` without first re-encrypting saved refresh tokens. Preview Database branches may inherit production user data, so keep preview links private and test with non-sensitive accounts.
 
-## 4. Add the client ID safely
+## 3. Apps Script
 
-Set `GOOGLE_CLIENT_ID` in Netlify with **Functions** scope. The `/api/config` Function returns only this public browser client ID to the page. Do **not** put `APPS_SCRIPT_URL`, `APP_GATEWAY_SHARED_SECRET`, OAuth client secrets, or refresh tokens in browser files.
+Create a **new standalone Apps Script project** under `ryan@espoirvivant.com`. Replace `Code.gs` with [`apps-script/Code.gs`](../apps-script/Code.gs). Add Script property `APP_GATEWAY_SHARED_SECRET`. Deploy a new Web app version and copy the `/exec` URL to Netlify. It must be callable by Netlify's server; the signed, five-minute gateway proof is required for every request. The script calls Drive REST with the signed-in user's OAuth access token and never uses `DriveApp`, `SpreadsheetApp`, or `DocumentApp` under the deployment owner.
 
-## Production test checklist
+Do not repoint an existing Focused or Aligned Apps Script deployment. Disconnecting Drive revokes the stored refresh token and deletes the connection row; it does not delete any Drive snapshot.
 
-1. Sign in; confirm an unsigned browser cannot save.
-2. Save one capture, task, follow-up, meal, weight, and exercise record.
-3. Reload; confirm Today reflects only the signed-in account’s records.
-4. Sign in with a second test account; confirm it sees none of the first account’s data.
-5. In DevTools, alter an API request body’s `owner_id` if added manually; Apps Script must ignore it and use the verified subject.
-6. Try the Function from an unlisted Origin; it must respond 403.
-7. Confirm Drive created separate `Purpose Driven/<user-key>/Purpose Driven Journal` folders/docs.
-8. Rotate the shared secret in both services together if it is ever exposed, then redeploy.
+## 4. Verify before merge
 
-## Operational limits
+1. Sign in, refresh the page, and confirm the same account stays signed in without a login loop. Sign out and switch to a second account.
+2. Create capture, task, person, review, food, weight and exercise records. Reload, then check them on a second device.
+3. Connect Drive, sync, disconnect and reconnect. Check the account email and timestamp. Test denied consent and expired authorization.
+4. Test one new and one existing workspace, dashboard presets, drag and button reorder, widget sizes, hidden widgets, goals, habits, pins, dark mode and a narrow mobile viewport.
+5. Sign in to a second Google account and verify that neither workspace nor Drive connection crosses accounts.
+6. Test an older snapshot and a same-revision divergent snapshot. Restore only after reviewing the prompt and confirm the previous workspace remains in revision history.
 
-Google Apps Script has quotas and web-app request limits. This app is designed for personal-scale tracking. The included docs sync is append-only; Sheets remains the structured source of truth. Voice capture relies on browser speech recognition and may not be supported by every browser.
+No authenticated Google Drive or production deployment has been tested in this branch. The original Apps Script was deliberately disabled, and no `Purpose Driven Backend` Sheet was found in the connected work-domain Drive. Any legacy data in another Google account or older deployment requires a separate read-only inventory and migration plan before cutover.

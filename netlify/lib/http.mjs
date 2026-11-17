@@ -1,0 +1,14 @@
+import crypto from 'node:crypto';
+
+export const json = (status, body, headers = {}) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...headers } });
+export const env = name => globalThis.Netlify?.env?.get(name) || process.env[name];
+export const allowedOrigin = request => { const origin = request.headers.get('origin'); const allowed = (env('ALLOWED_ORIGINS') || '').split(',').map(x => x.trim()).filter(Boolean); return !origin || allowed.includes(origin); };
+export const cookie = (name, value, maxAge) => `${name}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
+export const readCookie = (request, name) => request.headers.get('cookie')?.split(';').map(x => x.trim()).find(x => x.startsWith(`${name}=`))?.slice(name.length + 1) || '';
+export const constantTime = (a, b) => { const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && crypto.timingSafeEqual(x, y); };
+export const sign = (value, secret) => { const body = Buffer.from(JSON.stringify(value)).toString('base64url'); return `${body}.${crypto.createHmac('sha256', secret).update(body).digest('base64url')}`; };
+export const verify = (value, secret) => { const [body, mac, extra] = String(value || '').split('.'); if (!body || !mac || extra || !secret) return null; const expected = crypto.createHmac('sha256', secret).update(body).digest('base64url'); if (!constantTime(expected, mac)) return null; try { const decoded = JSON.parse(Buffer.from(body, 'base64url').toString()); return decoded.exp > Math.floor(Date.now() / 1000) ? decoded : null; } catch { return null; } };
+export const session = request => { const claims = verify(readCookie(request, '__Host-pd_session'), env('APP_SESSION_SECRET')); return claims?.sub && claims?.email ? claims : null; };
+export const proof = user => { const seconds = Math.floor(Date.now() / 1000); return sign({ sub: user.sub, email: user.email, iat: seconds, exp: seconds + 300, nonce: crypto.randomUUID() }, env('APP_GATEWAY_SHARED_SECRET')); };
+export function encrypt(value) { const key = Buffer.from(env('TOKEN_ENCRYPTION_KEY') || '', 'base64'); if (key.length !== 32) throw Error('Token encryption is not configured'); const iv = crypto.randomBytes(12); const cipher = crypto.createCipheriv('aes-256-gcm', key, iv); const output = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]); return Buffer.concat([iv, cipher.getAuthTag(), output]).toString('base64'); }
+export function decrypt(value) { const key = Buffer.from(env('TOKEN_ENCRYPTION_KEY') || '', 'base64'); if (key.length !== 32) throw Error('Token encryption is not configured'); const input = Buffer.from(value, 'base64'); const decipher = crypto.createDecipheriv('aes-256-gcm', key, input.subarray(0, 12)); decipher.setAuthTag(input.subarray(12, 28)); return Buffer.concat([decipher.update(input.subarray(28)), decipher.final()]).toString(); }
